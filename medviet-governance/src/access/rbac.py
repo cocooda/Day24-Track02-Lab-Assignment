@@ -1,55 +1,87 @@
-# src/access/rbac.py
-import casbin
 from functools import wraps
-from fastapi import HTTPException, Header
+from pathlib import Path
 from typing import Optional
 
-# Danh sách user giả lập (production dùng JWT + DB)
+from fastapi import Header, HTTPException
+
+try:
+    import casbin
+except ModuleNotFoundError:
+    casbin = None
+
+
 MOCK_USERS = {
     "token-alice": {"username": "alice", "role": "admin"},
-    "token-bob":   {"username": "bob",   "role": "ml_engineer"},
+    "token-bob": {"username": "bob", "role": "ml_engineer"},
     "token-carol": {"username": "carol", "role": "data_analyst"},
-    "token-dave":  {"username": "dave",  "role": "intern"},
+    "token-dave": {"username": "dave", "role": "intern"},
 }
 
-enforcer = casbin.Enforcer("src/access/model.conf", "src/access/policy.csv")
+ACCESS_DIR = Path(__file__).resolve().parent
+
+
+class CsvPolicyEnforcer:
+    def __init__(self, policy_path: Path):
+        self.permissions: set[tuple[str, str, str]] = set()
+        self.memberships: dict[str, set[str]] = {}
+        self._load_policy(policy_path)
+
+    def _load_policy(self, policy_path: Path) -> None:
+        for raw_line in policy_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = [item.strip() for item in line.split(",")]
+            if parts[0] == "p" and len(parts) >= 4:
+                self.permissions.add((parts[1], parts[2], parts[3]))
+            elif parts[0] == "g" and len(parts) >= 3:
+                self.memberships.setdefault(parts[1], set()).add(parts[2])
+
+    def enforce(self, subject: str, resource: str, action: str) -> bool:
+        if (subject, resource, action) in self.permissions:
+            return True
+        return any(
+            (role, resource, action) in self.permissions
+            for role in self.memberships.get(subject, set())
+        )
+
+
+enforcer = (
+    casbin.Enforcer(str(ACCESS_DIR / "model.conf"), str(ACCESS_DIR / "policy.csv"))
+    if casbin is not None
+    else CsvPolicyEnforcer(ACCESS_DIR / "policy.csv")
+)
+
 
 def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
-    """
-    TODO: Parse Bearer token và trả về user info.
-    Raise HTTPException 401 nếu token không hợp lệ.
-    """
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=___, detail="Missing token")
+        raise HTTPException(status_code=401, detail="Missing token")
 
-    token = authorization.split(" ")[1]
+    token = authorization.split(" ", 1)[1]
     user = MOCK_USERS.get(token)
-
     if not user:
-        raise HTTPException(status_code=___, detail="Invalid token")
-
+        raise HTTPException(status_code=401, detail="Invalid token")
     return user
 
+
 def require_permission(resource: str, action: str):
-    """
-    TODO: Decorator kiểm tra RBAC permission.
-    Dùng casbin enforcer để check (role, resource, action).
-    Raise HTTPException 403 nếu không có quyền.
-    """
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Lấy current_user từ kwargs (FastAPI inject qua Depends)
             current_user = kwargs.get("current_user")
             role = current_user["role"]
-
-            allowed = enforcer.enforce(___, ___, ___)  # TODO
-
+            username = current_user["username"]
+            allowed = enforcer.enforce(username, resource, action) or enforcer.enforce(
+                role, resource, action
+            )
             if not allowed:
                 raise HTTPException(
-                    status_code=___,    # TODO: HTTP status code
-                    detail=f"Role '{role}' cannot '{action}' on '{resource}'"
+                    status_code=403,
+                    detail=f"Role '{role}' cannot '{action}' on '{resource}'",
                 )
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator

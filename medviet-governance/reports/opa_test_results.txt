@@ -1,0 +1,16 @@
+OPA executable: `C:\Users\Admin\Tools\OPA\opa.exe`
+
+Command:
+`C:\Users\Admin\Tools\OPA\opa.exe eval -d policies\opa_policy.rego -i <input.json> "data.medviet.data_access.allow"`
+
+Results:
+- `policies/examples/admin_allow.json` -> `true`
+- `policies/examples/ml_engineer_allow.json` -> `true`
+- `policies/examples/ml_engineer_deny_delete.json` -> `false`
+- `policies/examples/restricted_export_deny.json` -> `false`
+
+Conclusion:
+- Admin is allowed when destination country is `VN`.
+- ML engineer can read training data.
+- ML engineer cannot delete production data.
+- Restricted data export outside `VN` is denied even for admin input.

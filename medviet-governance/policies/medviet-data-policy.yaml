@@ -1,0 +1,34 @@
+apiVersion: governance.toolkit/v1
+name: medviet-data-policy
+default_action: deny
+description: MedViet agent data policy for notebook AGT exercises.
+rules:
+  - name: allow-read-anonymized-dataset
+    condition: "action.type == 'read' and action.dataset == 'anonymized'"
+    action: allow
+    description: Allow agents to read the anonymized dataset.
+
+  - name: allow-data-analyst-read-aggregated-only
+    condition: "actor.role == 'data_analyst' and action.type == 'read' and action.dataset == 'aggregated'"
+    action: allow
+    description: data_analyst may only read the aggregated dataset.
+
+  - name: block-raw-pii-dataset
+    condition: "action.dataset in ['raw', 'raw_pii', 'patients_raw']"
+    action: deny
+    description: Block access to raw datasets that contain direct PII.
+
+  - name: block-export-outside-vn
+    condition: "action.type == 'export' and action.destination_country != 'VN'"
+    action: deny
+    description: Block exports outside Vietnam.
+
+  - name: require-human-approval-before-delete
+    condition: "action.type == 'delete' and approval.human == true"
+    action: allow
+    description: Delete operations require explicit human approval.
+
+  - name: deny-delete-without-human-approval
+    condition: "action.type == 'delete'"
+    action: deny
+    description: Deny delete when human approval is absent.

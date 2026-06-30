@@ -1,0 +1,7 @@
+{
+  "user": { "role": "ml_engineer" },
+  "resource": "training_data",
+  "action": "read",
+  "data_classification": "internal",
+  "destination_country": "VN"
+}

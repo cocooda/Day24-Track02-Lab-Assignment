@@ -1,0 +1,7 @@
+{
+  "user": { "role": "admin" },
+  "resource": "patient_data",
+  "action": "delete",
+  "data_classification": "restricted",
+  "destination_country": "VN"
+}

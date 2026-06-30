@@ -1,0 +1,7 @@
+{
+  "user": { "role": "ml_engineer" },
+  "resource": "production_data",
+  "action": "delete",
+  "data_classification": "restricted",
+  "destination_country": "VN"
+}
